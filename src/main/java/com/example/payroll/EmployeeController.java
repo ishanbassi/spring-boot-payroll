@@ -2,6 +2,8 @@ package com.example.payroll;
 
 import org.springframework.hateoas.CollectionModel;
 import org.springframework.hateoas.EntityModel;
+import org.springframework.hateoas.IanaLinkRelations;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -14,6 +16,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.List;
 import java.util.stream.Collector;
 import java.util.stream.Collectors;
+import org.springframework.http.ResponseEntity;
 
 import static
 org.springframework.hateoas.server.mvc.WebMvcLinkBuilder.linkTo;
@@ -24,9 +27,11 @@ import static org.springframework.hateoas.server.mvc.WebMvcLinkBuilder.methodOn;
 
 public class EmployeeController {
     private final EmployeeRepository repository;
+    private final EmployeeModelAssembler assembler;
 
-    EmployeeController(EmployeeRepository repository){
+    EmployeeController(EmployeeRepository repository ,EmployeeModelAssembler assembler){
         this.repository = repository;
+        this.assembler = assembler;
     }
     
     @GetMapping("/employees")
@@ -37,10 +42,7 @@ public class EmployeeController {
       List<EntityModel<Employee>> employees =  repository
       .findAll()
       .stream()
-      .map(em -> EntityModel.of(em,
-          linkTo(methodOn(EmployeeController.class).one(em.getId())).withSelfRel(),
-          linkTo(methodOn(EmployeeController.class).all()).withRel("employees"))
-      )
+      .map(em -> this.assembler.toModel(em))
       .collect(Collectors.toList());
       
 
@@ -56,21 +58,18 @@ public class EmployeeController {
       Employee employee  = repository.findById(id)
       .orElseThrow( () -> new EmployeeNotFoundException(id));
 
-      return  EntityModel.of(
-        employee,
-        linkTo(methodOn(EmployeeController.class).all()).withRel("employees"),
-        linkTo(methodOn(EmployeeController.class).one(id)).withSelfRel()
-        
-        
-      );
+      return  this.assembler.toModel(employee);
       
     }
 
     @PostMapping("/employees")
-    Employee newEmployee(@RequestBody Employee newEmployee) {
+    ResponseEntity<?>  newEmployee(@RequestBody Employee newEmployee) {
             
             System.out.println("hiiii");
-            return repository.save(newEmployee);
+            EntityModel<Employee> entityModel = this.assembler.toModel(repository.save(newEmployee));
+            return ResponseEntity 
+                    .created(entityModel.getRequiredLink(IanaLinkRelations.SELF).toUri())
+                    .body(entityModel);
     }
     
    
